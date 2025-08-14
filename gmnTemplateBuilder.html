@@ -169,12 +169,6 @@
   </head>
 
   <body>
-    <header class="builder-header">
-      <button id="goback-btn" class="tooltip" title="Quay lại"><i class="fa-solid fa-arrow-left"></i></button>
-      <button id="goto-btn" class="tooltip" title="Tiến tới"><i class="fa-solid fa-arrow-right"></i></button>
-      <button id="export-btn" class="tooltip" title="Xuất file"><i class="fa-solid fa-floppy-disk"></i></button>
-    </header>
-
     <div class="builder-container">
       <aside id="components-sidebar" class="builder-panel">
         <h5>Khối</h5>
@@ -182,8 +176,17 @@
         <div class="component" data-type="paragraph">Đoạn văn</div>
         <div class="component" data-type="button">Nút bấm</div>
       </aside>
-
-      <main id="canvas" class="builder-panel"></main>
+    <div> 
+  <header class="builder-header">
+          <button id="goback-btn" class="tooltip" title="Quay lại"><i class="fa-solid fa-arrow-left"></i></button>
+          <button id="goto-btn" class="tooltip" title="Tiến tới"><i class="fa-solid fa-arrow-right"></i></button>
+          <button id="export-btn" class="tooltip" title="Xuất file"><i class="fa-solid fa-floppy-disk"></i></button>
+        </header>
+        <main id="canvas" class="builder-panel"></main>
+</div>
+      
+        
+      </main>
 
       <aside id="properties-panel" class="builder-panel">
         <h5 id="properties-title">Thuộc tính</h5>

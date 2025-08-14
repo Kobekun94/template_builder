@@ -3,7 +3,19 @@
   "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
+  "[html]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
   "prettier.bracketSameLine": false,
   "prettier.enableDebugLogs": true,
-  "editor.formatOnSave": true
+  "editor.formatOnSave": true,
+  "prettier.arrowParens": "always",
+  "prettier.htmlWhitespaceSensitivity": "css",
+  "prettier.printWidth": 120,
+  "prettier.proseWrap": "preserve",
+  "prettier.semi": true,
+  "prettier.singleQuote": true,
+  "prettier.tabWidth": 2,
+  "prettier.trailingComma": "all",
+  "prettier.useTabs": false
 }
