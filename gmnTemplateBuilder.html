@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple VanillaJS Builder</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css" />
+
+    <style>
+      /* CSS tùy chỉnh cho builder */
+      body {
+        background-color: #f3f4f6; /* Màu nền nhạt */
+        padding: 0;
+        margin: 0;
+        font-size: 0.9rem; /* Font chữ nhỏ hơn */
+        font-family: arial;
+      }
+      .builder-header {
+        padding: 0.5rem 1rem; /* Header nhỏ hơn */
+        background-color: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: right;
+        align-items: center;
+        height: 60px; /* Chiều cao header */
+        gap: 10px;
+      }
+      .builder-header button {
+        max-width: 100px;
+        font-size: 0.8rem; /* Nút nhỏ hơn */
+        padding: 0.3rem 0.6rem;
+        border-radius: 5px;
+        border: 1px solid #ccc;
+        background-color: #000000;
+        cursor: pointer;
+      }
+      .builder-header button:hover {
+        background-color: #eee;
+        color: black;
+      }
+      .builder-container {
+        display: grid;
+        grid-template-columns: 220px 1fr 280px; /* Các cột hẹp hơn */
+        gap: 0.75rem; /* Khoảng cách giữa các container nhỏ hơn */
+        padding: 0.75rem; /* Padding tổng thể nhỏ hơn */
+        height: calc(100vh - 60px); /* Chiều cao trừ header */
+      }
+      .builder-panel {
+        background-color: #fff;
+        border-radius: 5px;
+        padding: 0.75rem; /* Padding bên trong panel nhỏ hơn */
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        overflow-y: auto;
+        border: 1px solid #e5e7eb;
+      }
+      #components-sidebar h5 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+      }
+      #components-sidebar .component {
+        padding: 0.5rem;
+        border: 1px dashed #d1d5db;
+        margin-bottom: 0.3rem;
+        cursor: grab;
+        background-color: #f9fafb;
+        text-align: center;
+        border-radius: 3px;
+      }
+      #canvas {
+        background-color: #fff;
+        min-height: 100%;
+        padding: 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 5px;
+      }
+      #canvas .canvas-item {
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        position: relative;
+        border: 1px solid transparent; /* Để khi selected có border */
+        border-radius: 3px;
+      }
+      #canvas .canvas-item.selected {
+        border-color: #007bff;
+        box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+      }
+      #properties-panel {
+        display: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 5px;
+      }
+      #properties-panel h5 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+      }
+      #properties-panel label {
+        display: block;
+        margin-top: 0.5rem;
+        margin-bottom: 0.2rem;
+        font-size: 0.85rem;
+        color: #374151;
+      }
+      #properties-panel input,
+      #properties-panel textarea {
+        width: 100%;
+        padding: 0.3rem;
+        border: 1px solid #d1d5db;
+        border-radius: 3px;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="builder-header">
+      <button id="export-btn">Xuất file</button>
+      <button id="export-btn">Quay lại</button>
+      <button id="export-btn">Tiếp tới</button>
+    </header>
+
+    <div class="builder-container">
+      <aside id="components-sidebar" class="builder-panel">
+        <h5>Khối</h5>
+        <div class="component" data-type="heading">Tiêu đề</div>
+        <div class="component" data-type="paragraph">Đoạn văn</div>
+        <div class="component" data-type="button">Nút bấm</div>
+      </aside>
+
+      <main id="canvas" class="builder-panel"></main>
+
+      <aside id="properties-panel" class="builder-panel">
+        <h5 id="properties-title">Thuộc tính</h5>
+        <div id="properties-content"></div>
+      </aside>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('components-sidebar');
+        const canvas = document.getElementById('canvas');
+        const propertiesPanel = document.getElementById('properties-panel');
+        const propertiesContent = document.getElementById('properties-content');
+        const exportBtn = document.getElementById('export-btn');
+
+        let selectedElement = null;
+
+        // Khởi tạo SortableJS cho sidebar (để clone)
+        new Sortable(sidebar, {
+          group: {
+            name: 'shared',
+            pull: 'clone', // Nhân bản phần tử
+            put: false, // Không cho phép thả vào đây
+          },
+          animation: 150,
+          sort: false, // Không sắp xếp trong sidebar
+        });
+
+        // Khởi tạo SortableJS cho canvas (để sắp xếp và nhận)
+        new Sortable(canvas, {
+          group: 'shared',
+          animation: 150,
+          onAdd: (evt) => {
+            // Khi một khối mới được thêm vào, tạo nội dung mặc định
+            const newEl = evt.item;
+            const type = newEl.dataset.type;
+            newEl.innerHTML = getInitialHTMLForType(type);
+            newEl.classList.remove('component'); // Bỏ class gốc
+            newEl.classList.add('canvas-item'); // Thêm class mới
+            selectElement(newEl); // Tự động chọn phần tử mới
+          },
+        });
+
+        function getInitialHTMLForType(type) {
+          switch (type) {
+            case 'heading':
+              return '<h1>Tiêu đề mặc định</h1>';
+            case 'paragraph':
+              return '<p>Đây là một đoạn văn bản. Bạn có thể chỉnh sửa nó.</p>';
+            case 'button':
+              return '<a href="#" class="pico-button">Bấm vào đây</a>';
+            default:
+              return '<div>Khối mới</div>';
+          }
+        }
+
+        // Chọn một phần tử trên canvas
+        function selectElement(el) {
+          if (selectedElement) {
+            selectedElement.classList.remove('selected');
+          }
+          selectedElement = el;
+          if (selectedElement) {
+            selectedElement.classList.add('selected');
+            updatePropertiesPanel();
+          } else {
+            propertiesPanel.style.display = 'none';
+          }
+        }
+
+        // Cập nhật bảng thuộc tính dựa trên phần tử được chọn
+        function updatePropertiesPanel() {
+          if (!selectedElement) return;
+
+          const inner = selectedElement.children[0];
+          if (!inner) return;
+
+          propertiesContent.innerHTML = ''; // Xóa nội dung cũ
+
+          const type = inner.tagName.toLowerCase();
+          document.getElementById('properties-title').innerText = `Thuộc tính: ${type}`;
+
+          // Tạo input để sửa text content
+          const textLabel = document.createElement('label');
+          textLabel.innerText = 'Nội dung';
+          const textInput = document.createElement('textarea');
+          textInput.value = inner.innerText;
+          textInput.oninput = () => {
+            inner.innerText = textInput.value;
+          };
+          propertiesContent.appendChild(textLabel);
+          propertiesContent.appendChild(textInput);
+
+          // Nếu là link hoặc button, thêm input cho href
+          if (type === 'a') {
+            const hrefLabel = document.createElement('label');
+            hrefLabel.innerText = 'Đường dẫn (URL)';
+            const hrefInput = document.createElement('input');
+            hrefInput.type = 'text';
+            hrefInput.value = inner.getAttribute('href') || '#';
+            hrefInput.oninput = () => {
+              inner.setAttribute('href', hrefInput.value);
+            };
+            propertiesContent.appendChild(hrefLabel);
+            propertiesContent.appendChild(hrefInput);
+          }
+
+          propertiesPanel.style.display = 'block';
+        }
+
+        // Lắng nghe sự kiện click trên canvas
+        canvas.addEventListener('click', (e) => {
+          // Tìm phần tử cha gần nhất là .canvas-item
+          const target = e.target.closest('.canvas-item');
+          selectElement(target);
+        });
+
+        // Xử lý nút xuất file
+        exportBtn.addEventListener('click', () => {
+          // 1. Clone canvas để không ảnh hưởng bản gốc
+          const exportCanvas = canvas.cloneNode(true);
+
+          // 2. Loại bỏ các phần tử và class không cần thiết
+          exportCanvas.querySelectorAll('.selected').forEach((el) => el.classList.remove('selected'));
+
+          // Lấy HTML bên trong
+          const rawHtml = exportCanvas.innerHTML;
+
+          // 3. Tạo một file HTML hoàn chỉnh
+          const fullHtml = `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang được xuất</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        body { padding: 2rem; }
+        .canvas-item { margin-bottom: 1rem; } /* Thêm khoảng cách cho đẹp */
+    </style>
+</head>
+<body>
+    ${rawHtml}
+</body>
+</html>`;
+          // 4. Tạo và tải file
+          const blob = new Blob([fullHtml], { type: 'text/html' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'trang-web.html';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        });
+      });
+    </script>
+  </body>
+</html>
