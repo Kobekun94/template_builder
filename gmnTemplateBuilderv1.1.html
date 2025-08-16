@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simple VanillaJS Builder</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+
+    <style>
+      /* CSS tùy chỉnh cho builder */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      /* CSS cho tree view trong layer panel */
+      .layer-node {
+        margin-bottom: 5px;
+      }
+
+      .layer-node-label {
+        padding: 5px;
+        border: 1px solid #ddd;
+        border-radius: 0px;
+        cursor: pointer;
+        background-color: #f9f9f9;
+        display: flex;
+        align-items: center;
+        transition: background-color 0.2s ease;
+      }
+
+      .layer-node-label:hover {
+        background-color: black;
+        color: white;
+      }
+
+      /* CSS tùy chỉnh cho layer tree */
+      #layer-tree {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        font-size: 0.7rem;
+        padding: 5px 0;
+      }
+
+      #layer-tree .layer-node {
+        margin: 0;
+        padding: 0;
+      }
+
+      #layer-tree .layer-node-label {
+        padding: 6px 8px;
+        border: none;
+        border-radius: 3px;
+        background-color: transparent;
+        margin-bottom: 2px;
+        user-select: none;
+        display: flex;
+        align-items: center;
+      }
+
+      #layer-tree .layer-node-label:hover {
+        background-color: black;
+        color: white;
+      }
+
+      #layer-tree .layer-node.selected {
+        background-color: black;
+        color: white;
+      }
+      #layer-tree .layer-node.selected i {
+        color: white;
+      }
+
+      #layer-tree .layer-node-label i {
+        margin-right: 8px;
+        width: 16px;
+        text-align: center;
+        color: #6c757d;
+      }
+
+      /* CSS cho icon tam giác thu gọn/mở rộng */
+      .layer-node-toggle {
+        margin-right: 5px;
+        width: 16px;
+        text-align: center;
+        cursor: pointer;
+        color: #6c757d;
+        transition: transform 0.2s ease;
+      }
+
+      .layer-node-toggle.collapsed {
+        transform: rotate(-90deg);
+      }
+
+      /* CSS cho children container */
+      .layer-node-children {
+        margin-left: 10px;
+      }
+
+      .layer-node-children.collapsed {
+        display: none;
+      }
+
+      /* Indentation for nested nodes */
+      #layer-tree .layer-node {
+        padding-left: 0;
+      }
+
+      #layer-tree .layer-node .layer-node {
+        padding-left: 10px;
+      }
+
+      #layer-tree .layer-node .layer-node .layer-node {
+        padding-left: 10px;
+      }
+
+      #layer-tree .layer-node .layer-node .layer-node .layer-node {
+        padding-left: 10px;
+      }
+
+      /* Scrollbar styling for layer tree */
+      #layer-tree::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      #layer-tree::-webkit-scrollbar-track {
+        background: #f1f1f1;
+      }
+
+      #layer-tree::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+      }
+
+      #layer-tree::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }
+
+      body {
+        background-color: #f3f4f6; /* Màu nền nhạt */
+        padding: 0;
+        margin: 0;
+        font-size: 0.9rem; /* Font chữ nhỏ hơn */
+        font-family: arial;
+        overflow: hidden; /* Ngăn xuất hiện thanh trượt */
+      }
+      button {
+        all: unset;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 39px;
+        min-width: 39px;
+        font-size: 16px;
+        font-weight: 500;
+        color: #fff;
+        background-color: #fff;
+        border: 1px solid #d1d5db;
+        box-sizing: border-box;
+        border-radius: 3px;
+        cursor: pointer;
+        transition: background-color 0.3s, color 0.3s;
+      }
+
+      button:hover {
+        background-color: #f0f0f0;
+        box-sizing: border-box;
+      }
+
+      button:focus {
+        outline: none;
+        box-shadow: inset 0 0 0 2px gray;
+        border: none;
+      }
+      button:active {
+        outline: none;
+        box-shadow: inset 0 0 0 2px gray;
+        border: none;
+      }
+      *:focus {
+        outline: none;
+        border: none;
+        box-shadow: none;
+      }
+      .builder-container {
+        display: grid;
+        grid-template-columns: 0.45fr 1fr 0.45fr;
+        height: 100vh;
+        gap: 1px;
+        padding: 1px;
+        box-sizing: border-box;
+      }
+      .builder-panel {
+        background-color: #fff;
+        border-radius: 0px;
+        box-sizing: border-box;
+        padding: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        overflow-y: auto;
+      }
+
+      /* Tooltip container */
+      .tooltip {
+        position: relative;
+        display: inline-block;
+      }
+
+      /* Tooltip text */
+      .tooltip::after {
+        content: attr(title);
+        visibility: hidden;
+        background-color: #333;
+        color: #fff;
+        text-align: center;
+        border-radius: 4px;
+        padding: 5px;
+        position: absolute;
+        z-index: 1;
+        top: 125%; /* Position below the button */
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.3s;
+        font-size: 0.5rem;
+        white-space: nowrap;
+      }
+
+      /* Tooltip arrow */
+      .tooltip::before {
+        content: '';
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: transparent transparent #333 transparent; /* Arrow pointing up */
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+
+      /* Show tooltip on hover */
+      .tooltip:hover::after,
+      .tooltip:hover::before {
+        visibility: visible;
+        opacity: 1;
+      }
+
+      [id^='components-sidebar-'] h5 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+      }
+      [id^='components-sidebar-'] .component {
+        padding: 0.5rem;
+        border: 1px solid black;
+        margin-bottom: 0.3rem;
+        cursor: grab;
+        background-color: #fff;
+        text-align: center;
+        border-radius: 3px;
+      }
+
+      .components-sidebar-block {
+        box-sizing: border-box;
+        border-top: 1px solid black;
+        border-radius: 0px;
+      }
+
+      .buider-main,
+      .builder-nav,
+      .buider-property {
+        background-color: #fff;
+        box-sizing: border-box;
+        height: 100vh;
+        border: 1px solid black;
+      }
+      .builder-header,
+      .header-nav,
+      .property-header {
+        background-color: #fff;
+        display: flex;
+        justify-content: right;
+        align-items: center;
+        height: 40px;
+        border-bottom: 1px solid black;
+      }
+      .builder-header button,
+      .header-nav button,
+      .property-header button {
+        display: flex;
+        font-size: 0.6rem; /* Nút nhỏ hơn */
+        margin: 0px;
+        padding: 0px;
+        border-radius: 0px;
+        border-top: none;
+        background-color: #000;
+        cursor: pointer;
+        box-sizing: border-box;
+      }
+      .builder-header button:hover,
+      .header-nav button:hover,
+      .property-header button:hover {
+        background-color: #eee;
+        color: black;
+      }
+      #canvas {
+        background-color: #fff;
+        height: calc(100vh - 40px);
+        border-radius: 0px;
+        border: none;
+      }
+      #canvas .canvas-item {
+        position: relative;
+        border: 1px dashed transparent;
+        border-radius: 0px;
+        padding: 5px;
+      }
+
+      /* CSS cho heading và text trong canvas-item */
+      #canvas .canvas-item h1,
+      #canvas .canvas-item h2,
+      #canvas .canvas-item h3,
+      #canvas .canvas-item h4,
+      #canvas .canvas-item h5,
+      #canvas .canvas-item h6 {
+        font-size: 20px;
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      #canvas .canvas-item p {
+        font-size: 12px;
+        margin-top: 0.3rem;
+        margin-bottom: 0.3rem;
+      }
+
+      #canvas .canvas-item.selected {
+        border-color: #000;
+        box-shadow: 0 0 5px gray;
+      }
+
+      /* CSS để xử lý hover cho các phần tử chồng chéo */
+      #canvas .canvas-item {
+        pointer-events: auto;
+      }
+
+      #canvas .canvas-item.hover {
+        border-color: #007bff;
+        background-color: #91beef;
+      }
+      #properties-panel {
+        display: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 5px;
+      }
+      #properties-panel h5 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+        font-size: 1rem;
+      }
+      #properties-panel label {
+        display: block;
+        margin-top: 0.5rem;
+        margin-bottom: 0.2rem;
+        font-size: 0.85rem;
+        color: #374151;
+      }
+      #properties-panel input,
+      #properties-panel textarea {
+        width: 100%;
+        padding: 0.3rem;
+        border-top: 1px solid #d1d5db;
+        border-radius: 3px;
+        font-size: 0.9rem;
+      }
+
+      /* CSS cho các tab button */
+      .builder-header-left {
+        padding: 10px;
+        background-color: #fff;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: left;
+        align-items: center;
+        height: 40px;
+        gap: 5px;
+      }
+
+      .tab-button {
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        background-color: #f9fafb;
+        text-align: center;
+        border-radius: 0px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+
+      .tab-button.active {
+        outline: none;
+        box-shadow: inset 0 0 0 2px gray;
+        border: none;
+      }
+
+      .tab-button:hover {
+        background-color: #e5e7eb;
+      }
+
+      /* CSS cho tab selector trong components sidebar */
+      .tab-selector {
+        display: flex;
+        margin-bottom: 10px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      /* CSS cho tab selector button trong components sidebar */
+      .tab-selector-btn {
+        padding: 8px 16px;
+        border: 1px solid #d1d5db;
+        background-color: #f9fafb;
+        cursor: pointer;
+        font-size: 0.9rem;
+        border-radius: 0px;
+        transition: all 0.2s ease;
+        color: #374151;
+        outline: none;
+        margin-right: 5px;
+        box-sizing: border-box; /* Đảm bảo padding và border được tính vào kích thước tổng thể */
+      }
+
+      .tab-selector-btn:hover {
+        background-color: #e5e7eb;
+        border: 1px solid #d1d5db; /* Giữ nguyên border */
+      }
+
+      .tab-selector-btn.active {
+        background-color: #000;
+        color: #fff;
+        border: 1px solid #d1d5db; /* Giữ nguyên border */
+      }
+
+      .components-tab {
+        display: none;
+      }
+
+      .components-tab.active {
+        display: block;
+      }
+
+      /* CSS cho layout 2 cột của components */
+      .components-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .components-grid .component {
+        margin-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 0.7rem;
+        background-color: black;
+        color: white;
+        border-radius: 0px;
+      }
+      .components-grid .component:hover {
+        margin-bottom: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        font-size: 0.7rem;
+        background-color: #e5e7eb;
+        color: black;
+      }
+
+      /* CSS cho layout columns */
+      .col-1 {
+        width: 100%;
+      }
+
+      .col-2-container {
+        display: flex;
+        gap: 10px;
+      }
+
+      .col-2 {
+        flex: 1;
+      }
+
+      .col-3-container {
+        display: flex;
+        gap: 10px;
+      }
+
+      .col-3 {
+        flex: 1;
+      }
+
+      .col-2-3-7-container {
+        display: flex;
+        gap: 10px;
+      }
+
+      .col-2-3-7-container .col-3 {
+        flex: 3;
+      }
+
+      /* CSS cho layout containers */
+      .layout-container {
+        display: flex;
+        gap: 10px;
+        padding: 5px;
+        margin: 5px;
+        border: 1px dashed #ccc;
+        border-radius: 3px;
+      }
+
+      .layout-container .canvas-item {
+        flex: 1;
+      }
+
+      /* Các lớp cụ thể cho layout 2col-3-7 */
+      .layout-container .col-3 {
+        flex: 3;
+      }
+
+      .layout-container .col-7 {
+        flex: 7;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="builder-container">
+      <div class="builder-nav">
+        <header class="header-nav">
+          <button class="tab-button active tooltip" data-tab="block" title="Khối">
+            <i class="fa-solid fa-cube"></i>
+          </button>
+          <button class="tab-button tooltip" data-tab="layer" title="Layer">
+            <i class="fa-solid fa-layer-group"></i>
+          </button>
+          <button class="tab-button tooltip" data-tab="asset" title="Tài nguyên">
+            <i class="fa-solid fa-images"></i>
+          </button>
+          <button class="tab-button tooltip" data-tab="global" title="Style toàn cục">
+            <i class="fa-solid fa-earth-americas"></i>
+          </button>
+          <button class="tab-button tooltip" data-tab="variable" title="Biến">
+            <i class="fa-solid fa-square-root-variable"></i>
+          </button>
+        </header>
+        <aside id="components-sidebar-block" class="builder-panel">
+          <h5>Khối</h5>
+          <!-- Tab selector -->
+          <div class="tab-selector">
+            <button class="tab-selector-btn active" data-tab="basic">Basic</button>
+            <button class="tab-selector-btn" data-tab="layout">Layout</button>
+          </div>
+
+          <!-- Basic components -->
+          <div class="components-tab active" data-tab-content="basic">
+            <div class="components-grid">
+              <div class="component" data-type="section"><i class="fa-solid fa-section"></i>Section</div>
+              <div class="component" data-type="heading"><i class="fa-solid fa-heading"></i>Heading</div>
+              <div class="component" data-type="text"><i class="fa-solid fa-font"></i>Text</div>
+              <div class="component" data-type="divider"><i class="fa-solid fa-slash"></i>Divider</div>
+              <div class="component" data-type="link"><i class="fa-solid fa-link"></i>Link</div>
+              <div class="component" data-type="linkbox"><i class="fa-solid fa-lines-leaning"></i>Linkbox</div>
+              <div class="component" data-type="image"><i class="fa-solid fa-image"></i>Image</div>
+            </div>
+          </div>
+
+          <!-- Layout components -->
+          <div class="components-tab" data-tab-content="layout">
+            <div class="components-grid">
+              <div class="component" data-type="1col">1 Column</div>
+              <div class="component" data-type="2col">2 Columns</div>
+              <div class="component" data-type="3col">3 Columns</div>
+              <div class="component" data-type="2col-3-7">2 col 3/7</div>
+            </div>
+          </div>
+        </aside>
+        <aside id="components-sidebar-layer" class="builder-panel">
+          <h5>Layer</h5>
+          <div id="layer-tree"></div>
+        </aside>
+        <aside id="components-sidebar-asset" class="builder-panel">
+          <h5>Asset</h5>
+          <div class="component" data-type="heading">Tiêu đề</div>
+          <div class="component" data-type="paragraph">Đoạn văn</div>
+          <div class="component" data-type="button">Nút bấm</div>
+        </aside>
+        <aside id="components-sidebar-global" class="builder-panel">
+          <h5>Global Style</h5>
+          <div class="component" data-type="heading">Tiêu đề</div>
+          <div class="component" data-type="paragraph">Đoạn văn</div>
+          <div class="component" data-type="button">Nút bấm</div>
+        </aside>
+        <aside id="components-sidebar-variable" class="builder-panel">
+          <h5>Global Style</h5>
+          <div class="component" data-type="heading">Tiêu đề</div>
+          <div class="component" data-type="paragraph">Đoạn văn</div>
+          <div class="component" data-type="button">Nút bấm</div>
+        </aside>
+      </div>
+      <div class="buider-main">
+        <header class="builder-header">
+          <button id="goback-btn" class="tooltip" title="Quay lại">
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <button id="goto-btn" class="tooltip" title="Tiến tới">
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+          <button id="export-btn" class="tooltip" title="Xuất file">
+            <i class="fa-solid fa-floppy-disk"></i>
+          </button>
+        </header>
+        <main id="canvas" class="builder-panel"></main>
+      </div>
+      <div class="buider-property">
+        <header class="property-header">
+          <button id="goback-btn" class="tooltip" title="Quay lại">
+            <i class="fa-solid fa-arrow-left"></i>
+          </button>
+          <button id="goto-btn" class="tooltip" title="Tiến tới">
+            <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </header>
+        <aside id="properties-panel" class="builder-panel">
+          <h5 id="properties-title">Thuộc tính</h5>
+          <div id="properties-content"></div>
+        </aside>
+      </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+
+    <script>
+      // Hàm tạo ID duy nhất
+      function generateUniqueId() {
+        return 'element-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        const sidebar = document.getElementById('components-sidebar-block');
+        const canvas = document.getElementById('canvas');
+        const propertiesPanel = document.getElementById('properties-panel');
+        const propertiesContent = document.getElementById('properties-content');
+        const exportBtn = document.getElementById('export-btn');
+
+        let selectedElement = null;
+
+        // Khởi tạo SortableJS cho các grid chứa component trong sidebar (để clone)
+        // Lấy tất cả các grid chứa component trong sidebar
+        const componentGrids = sidebar.querySelectorAll('.components-grid');
+        componentGrids.forEach((grid) => {
+          new Sortable(grid, {
+            group: {
+              name: 'shared',
+              pull: 'clone', // Nhân bản phần tử
+              put: false, // Không cho phép thả vào đây
+            },
+            animation: 150,
+            sort: false, // Không sắp xếp trong sidebar
+          });
+        });
+
+        // Khởi tạo SortableJS cho canvas (để sắp xếp và nhận)
+        new Sortable(canvas, {
+          group: 'shared',
+          animation: 150,
+          onAdd: (evt) => {
+            // Khi một khối mới được thêm vào, tạo nội dung mặc định
+            const newEl = evt.item;
+            const type = newEl.dataset.type;
+
+            // Xử lý các component layout đặc biệt
+            if (type === '1col' || type === '2col' || type === '3col' || type === '2col-3-7') {
+              // Xóa class component và thêm class container cho layout
+              newEl.classList.remove('component');
+              newEl.classList.add('layout-container');
+              // Giữ lại data-type để layer tree có thể nhận diện
+              const layoutType = newEl.dataset.type;
+              newEl.dataset.layoutType = layoutType; // Lưu trữ loại layout
+
+              // Tạo các cột riêng biệt dựa trên loại layout
+              const columns = getLayoutColumns(type);
+              newEl.innerHTML = '';
+
+              columns.forEach((columnHTML, index) => {
+                const columnEl = document.createElement('div');
+                columnEl.innerHTML = columnHTML;
+                columnEl.classList.add('canvas-item');
+                columnEl.dataset.columnIndex = index;
+                newEl.appendChild(columnEl);
+
+                // Khởi tạo SortableJS cho mỗi cột trong layout container
+                new Sortable(columnEl, {
+                  group: 'shared',
+                  animation: 150,
+                  onAdd: function (evt) {
+                    // Khi một block được thêm vào cột, tạo nội dung mặc định
+                    const addedEl = evt.item;
+                    const addedType = addedEl.dataset.type;
+                    addedEl.innerHTML = getInitialHTMLForType(addedType);
+                    addedEl.classList.remove('component');
+                    addedEl.classList.add('canvas-item');
+                    selectElement(addedEl);
+                    // Cập nhật layer tree khi thêm phần tử, giữ nguyên selection
+                    const selectedElementId = selectedElement ? selectedElement.dataset.elementId : null;
+                    updateLayerTree(selectedElementId);
+                  },
+                });
+              });
+
+              // Chọn cột đầu tiên
+              if (newEl.firstChild) {
+                selectElement(newEl.firstChild);
+              }
+            } else {
+              // Xử lý các component thông thường
+              newEl.innerHTML = getInitialHTMLForType(type);
+              newEl.classList.remove('component'); // Bỏ class gốc
+              newEl.classList.add('canvas-item'); // Thêm class mới
+              selectElement(newEl); // Tự động chọn phần tử mới
+            }
+            // Cập nhật layer tree khi thêm phần tử, giữ nguyên selection
+            const selectedElementId = selectedElement ? selectedElement.dataset.elementId : null;
+            updateLayerTree(selectedElementId);
+          },
+        });
+
+        function getInitialHTMLForType(type) {
+          switch (type) {
+            case 'heading':
+              return '<h1>Tiêu đề mặc định</h1>';
+            case 'paragraph':
+              return '<p>Đây là một đoạn văn bản. Bạn có thể chỉnh sửa nó.</p>';
+            case 'button':
+              return '<a href="#" class="pico-button">Bấm vào đây</a>';
+            case 'section':
+              return '<section><h2>Tiêu đề Section</h2><p>Nội dung section</p></section>';
+            case 'text':
+              return '<p>Đây là một đoạn văn bản. Bạn có thể chỉnh sửa nó.</p>';
+            case 'divider':
+              return '<hr>';
+            case 'link':
+              return '<a href="#">Liên kết</a>';
+            case 'linkbox':
+              return '<div><a href="#">Liên kết trong hộp</a></div>';
+            case 'image':
+              return '<img src="#" alt="Hình ảnh" style="width: 100%; height: auto;">';
+            case '1col':
+              return '<div class="col-1" style="padding: 5px; margin: 5px;"></div>';
+            case '2col':
+              return '<div class="col-2-container" style="padding: 5px; margin: 5px;"><div class="col-2"></div><div class="col-2"></div></div>';
+            case '3col':
+              return '<div class="col-3-container" style="padding: 5px; margin: 5px;"><div class="col-3"></div><div class="col-3"></div><div class="col-3"></div></div>';
+            case '2col-3-7':
+              return '<div class="col-2-3-7-container" style="padding: 5px; margin: 5px;"><div class="col-3"></div><div class="col-7"></div></div>';
+            default:
+              return '<div>Khối mới</div>';
+          }
+        }
+
+        // Hàm tạo các cột cho layout components
+        function getLayoutColumns(type) {
+          switch (type) {
+            case '1col':
+              return ['<div class="col-1" style="padding: 5px; margin: 5px;"></div>'];
+            case '2col':
+              return [
+                '<div class="col-2" style="padding: 5px; margin: 5px;"></div>',
+                '<div class="col-2" style="padding: 5px; margin: 5px;"></div>',
+              ];
+            case '3col':
+              return [
+                '<div class="col-3" style="padding: 5px; margin: 5px;"></div>',
+                '<div class="col-3" style="padding: 5px; margin: 5px;"></div>',
+                '<div class="col-3" style="padding: 5px; margin: 5px;"></div>',
+              ];
+            case '2col-3-7':
+              return [
+                '<div class="col-3" style="padding: 5px; margin: 5px;"></div>',
+                '<div class="col-7" style="padding: 5px; margin: 5px;"></div>',
+              ];
+            default:
+              return [];
+          }
+        }
+
+        // Select an element on the canvas
+        function selectElement(el) {
+          if (selectedElement === el) return;
+
+          // Deselect the previously selected element
+          if (selectedElement) {
+            selectedElement.classList.remove('selected');
+          }
+
+          selectedElement = el;
+
+          // Select the new element and update the UI
+          if (selectedElement) {
+            selectedElement.classList.add('selected');
+            const selectedElementId = selectedElement.dataset.elementId;
+            updatePropertiesPanel();
+            updateLayerTreeSelection(selectedElementId);
+            // Scroll canvas element into view
+            selectedElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } else {
+            propertiesPanel.style.display = 'none';
+            updateLayerTreeSelection(null);
+          }
+        }
+
+        // Cập nhật selection trong layer tree mà không rebuild toàn bộ
+        function updateLayerTreeSelection(selectedElementId) {
+          const layerTree = document.getElementById('layer-tree');
+          if (layerTree) {
+            // Deselect all layer nodes
+            const allNodes = layerTree.querySelectorAll('.layer-node');
+            allNodes.forEach((node) => node.classList.remove('selected'));
+
+            if (selectedElementId) {
+              // Select the target layer node
+              const targetNode = layerTree.querySelector(`.layer-node[data-element-id="${selectedElementId}"]`);
+              if (targetNode) {
+                targetNode.classList.add('selected');
+              }
+            }
+          }
+        }
+
+        // Cập nhật bảng thuộc tính dựa trên phần tử được chọn
+        function updatePropertiesPanel() {
+          if (!selectedElement) return;
+
+          propertiesContent.innerHTML = ''; // Xóa nội dung cũ
+
+          // Kiểm tra xem phần tử được chọn có phải là một cột trong layout container không
+          const parent = selectedElement.parentElement;
+          if (parent && parent.classList.contains('layout-container')) {
+            // Xử lý các cột trong layout container
+            document.getElementById('properties-title').innerText = 'Thuộc tính cột';
+
+            // Không cho phép chỉnh sửa text trực tiếp trong layout
+            const infoLabel = document.createElement('label');
+            infoLabel.innerText = 'Kéo thả các block từ thanh công cụ vào đây';
+            propertiesContent.appendChild(infoLabel);
+          } else {
+            // Xử lý các phần tử thông thường
+            const inner = selectedElement.children[0];
+            if (!inner) return;
+
+            const type = inner.tagName.toLowerCase();
+            document.getElementById('properties-title').innerText = `Thuộc tính: ${type}`;
+
+            // Tạo input để sửa text content
+            const textLabel = document.createElement('label');
+            textLabel.innerText = 'Nội dung';
+            const textInput = document.createElement('textarea');
+            textInput.value = inner.innerText;
+            textInput.oninput = () => {
+              inner.innerText = textInput.value;
+            };
+            propertiesContent.appendChild(textLabel);
+            propertiesContent.appendChild(textInput);
+
+            // Nếu là link hoặc button, thêm input cho href
+            if (type === 'a') {
+              const hrefLabel = document.createElement('label');
+              hrefLabel.innerText = 'Đường dẫn (URL)';
+              const hrefInput = document.createElement('input');
+              hrefInput.type = 'text';
+              hrefInput.value = inner.getAttribute('href') || '#';
+              hrefInput.oninput = () => {
+                inner.setAttribute('href', hrefInput.value);
+              };
+              propertiesContent.appendChild(hrefLabel);
+              propertiesContent.appendChild(hrefInput);
+            }
+          }
+
+          propertiesPanel.style.display = 'block';
+        }
+
+        // Lắng nghe sự kiện click trên canvas
+        canvas.addEventListener('click', (e) => {
+          let target = e.target.closest('.canvas-item');
+          selectElement(target);
+        });
+
+        // Lắng nghe sự kiện keydown để xóa phần tử
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Delete' && selectedElement) {
+            // Xóa phần tử được chọn
+            selectedElement.remove();
+            selectedElement = null;
+            updatePropertiesPanel();
+            // Cập nhật layer tree khi xóa phần tử
+            updateLayerTree();
+          }
+        });
+
+        // Xử lý nút xuất file
+        exportBtn.addEventListener('click', () => {
+          // 1. Clone canvas để không ảnh hưởng bản gốc
+          const exportCanvas = canvas.cloneNode(true);
+
+          // 2. Loại bỏ các phần tử và class không cần thiết
+          exportCanvas.querySelectorAll('.selected').forEach((el) => el.classList.remove('selected'));
+
+          // Lấy HTML bên trong
+          const rawHtml = exportCanvas.innerHTML;
+
+          // 3. Tạo một file HTML hoàn chỉnh
+          const fullHtml = `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang được xuất</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <style>
+        body { padding: 2rem; }
+        .canvas-item { margin-bottom: 1rem; } /* Thêm khoảng cách cho đẹp */
+    </style>
+</head>
+<body>
+    ${rawHtml}
+</body>
+</html>`;
+          // 4. Tạo và tải file
+          const blob = new Blob([fullHtml], { type: 'text/html' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'trang-web.html';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        });
+      });
+
+      // Xử lý sự kiện click cho các tab button
+      document.querySelectorAll('.tab-button').forEach((button) => {
+        button.addEventListener('click', () => {
+          // Xóa class active khỏi tất cả các button
+          document.querySelectorAll('.tab-button').forEach((btn) => {
+            btn.classList.remove('active');
+          });
+
+          // Thêm class active cho button được click
+          button.classList.add('active');
+
+          // Ẩn tất cả các aside
+          document.querySelectorAll('.builder-panel').forEach((panel) => {
+            if (panel.id.startsWith('components-sidebar-')) {
+              panel.style.display = 'none';
+            }
+          });
+
+          // Hiển thị aside tương ứng
+          const tab = button.getAttribute('data-tab');
+          const targetAside = document.getElementById(`components-sidebar-${tab}`);
+          if (targetAside) {
+            targetAside.style.display = 'block';
+          }
+        });
+      });
+
+      // Hiển thị aside block mặc định khi tải trang
+      document.addEventListener('DOMContentLoaded', () => {
+        // Ẩn tất cả các aside trước
+        document.querySelectorAll('.builder-panel').forEach((panel) => {
+          if (panel.id.startsWith('components-sidebar-')) {
+            panel.style.display = 'none';
+          }
+        });
+
+        // Hiển thị aside block
+        document.getElementById('components-sidebar-block').style.display = 'block';
+
+        // Đảm bảo chỉ button Block có class active
+        document.querySelectorAll('.tab-button').forEach((btn) => {
+          btn.classList.remove('active');
+        });
+        document.querySelector('.tab-button[data-tab="block"]').classList.add('active');
+      });
+
+      // Xử lý sự kiện click cho tab selector trong components sidebar
+      document.querySelectorAll('.tab-selector-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          // Xóa class active khỏi tất cả các button selector
+          document.querySelectorAll('.tab-selector-btn').forEach((btn) => {
+            btn.classList.remove('active');
+          });
+
+          // Thêm class active cho button được click
+          button.classList.add('active');
+
+          // Ẩn tất cả các tab component
+          document.querySelectorAll('.components-tab').forEach((tab) => {
+            tab.classList.remove('active');
+          });
+
+          // Hiển thị tab component tương ứng
+          const tab = button.getAttribute('data-tab');
+          const targetTab = document.querySelector(`.components-tab[data-tab-content="${tab}"]`);
+          if (targetTab) {
+            targetTab.classList.add('active');
+          }
+        });
+      });
+
+      // Cập nhật cây layer khi DOM đã tải xong
+      document.addEventListener('DOMContentLoaded', () => {
+        updateLayerTree();
+
+        // Thêm event listeners cho hover trên canvas
+        canvas.addEventListener('mouseover', function (e) {
+          // Ngừng sự kiện lan tỏa lên các phần tử cha
+          e.stopPropagation();
+
+          // Tìm phần tử canvas-item gần nhất là target của sự kiện
+          let target = e.target.closest('.canvas-item');
+
+          if (target) {
+            // Trước tiên, xóa class 'hover' khỏi tất cả các phần tử khác
+            canvas.querySelectorAll('.canvas-item.hover').forEach((el) => {
+              if (el !== target) {
+                el.classList.remove('hover');
+              }
+            });
+            // Thêm class 'hover' chỉ cho target hiện tại
+            target.classList.add('hover');
+          }
+        });
+
+        canvas.addEventListener('mouseout', function (e) {
+          // Ngừng sự kiện lan tỏa
+          e.stopPropagation();
+
+          // Tìm phần tử canvas-item gần nhất
+          let target = e.target.closest('.canvas-item');
+
+          if (target) {
+            // Xóa class hover khi chuột rời khỏi phần tử
+            target.classList.remove('hover');
+          }
+        });
+
+        // Thêm một listener cho canvas để dọn dẹp khi chuột rời khỏi toàn bộ khu vực canvas
+        canvas.addEventListener('mouseleave', function (e) {
+          canvas.querySelectorAll('.canvas-item.hover').forEach((el) => {
+            el.classList.remove('hover');
+          });
+        });
+      });
+
+      // Hàm tạo cây layer từ canvas
+      function updateLayerTree(selectedElementId = null) {
+        const layerTree = document.getElementById('layer-tree');
+        layerTree.innerHTML = ''; // Xóa nội dung cũ
+
+        // Duyệt qua tất cả các phần tử trực tiếp trong canvas
+        const directChildren = Array.from(canvas.children);
+        directChildren.forEach((child, index) => {
+          const treeNode = createTreeNode(child, 0);
+          if (treeNode) {
+            // Chỉ thêm node nếu nó không bị ẩn
+            layerTree.appendChild(treeNode);
+          }
+        });
+
+        // Nếu có selectedElementId, cập nhật selection
+        if (selectedElementId) {
+          updateLayerTreeSelection(selectedElementId);
+        }
+      }
+
+      // Hàm tạo một node trong cây
+      function createTreeNode(element, depth) {
+        // Nếu element có nhãn là "unknown", ẩn nó đi
+        const elementData = getElementLabel(element);
+        if (elementData.label === 'unknown' || elementData.label === 'unknow') {
+          return null; // Không hiển thị các phần tử không xác định
+        }
+
+        // Thêm ID duy nhất cho element nếu chưa có
+        if (!element.dataset.elementId) {
+          element.dataset.elementId = generateUniqueId();
+        }
+
+        const node = document.createElement('div');
+        node.className = 'layer-node';
+        node.style.marginLeft = depth * 5 + 'px'; // Thụt lề để thể hiện cấp độ
+
+        // Tạo nhãn cho node
+        // Thêm ID của element vào node như một thuộc tính data
+        node.dataset.elementId = element.dataset.elementId;
+        const label = document.createElement('div');
+        label.className = 'layer-node-label';
+        // Thêm ID của element vào label như một thuộc tính data
+        label.dataset.elementId = element.dataset.elementId;
+        // Tạo icon element
+        const icon = document.createElement('i');
+        icon.className = elementData.icon;
+        icon.style.marginRight = '5px';
+
+        // Kiểm tra xem node có children không để thêm icon tam giác
+        let hasChildren = false;
+        if (element.classList.contains('layout-container')) {
+          hasChildren = element.children.length > 0;
+        } else if (
+          element.classList.contains('canvas-item') &&
+          element.parentElement &&
+          element.parentElement.classList.contains('layout-container')
+        ) {
+          // Nếu là một column trong layout container, kiểm tra có block con không
+          hasChildren = Array.from(element.children).some(
+            (childElement) => childElement.classList && childElement.classList.contains('canvas-item'),
+          );
+        }
+
+        // Tạo icon tam giác nếu có children
+        let toggleIcon = null;
+        if (hasChildren) {
+          toggleIcon = document.createElement('i');
+          toggleIcon.className = 'layer-node-toggle fa fa-chevron-down';
+          toggleIcon.style.marginRight = '5px';
+          toggleIcon.onclick = function (e) {
+            e.stopPropagation(); // Ngăn sự kiện click lan ra label
+
+            // Toggle class collapsed cho icon
+            this.classList.toggle('collapsed');
+
+            // Tìm container chứa children
+            let childrenContainer = this.parentNode.parentNode.querySelector('.layer-node-children');
+
+            // Nếu không có container, tạo mới
+            if (!childrenContainer) {
+              childrenContainer = document.createElement('div');
+              childrenContainer.className = 'layer-node-children';
+
+              // Di chuyển tất cả các node con vào container
+              while (this.parentNode.parentNode.childNodes.length > 1) {
+                if (this.parentNode.parentNode.childNodes[1]) {
+                  childrenContainer.appendChild(this.parentNode.parentNode.childNodes[1]);
+                }
+              }
+
+              this.parentNode.parentNode.appendChild(childrenContainer);
+            }
+
+            // Toggle class collapsed cho container
+            childrenContainer.classList.toggle('collapsed');
+          };
+        }
+
+        // Tạo text node
+        const text = document.createTextNode(elementData.label);
+
+        // Thêm icon và text vào label
+        if (toggleIcon) {
+          label.appendChild(toggleIcon);
+        }
+        label.appendChild(icon);
+        label.appendChild(text);
+
+        node.onclick = (e) => {
+          e.stopPropagation();
+          selectElement(element);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        };
+        label.onclick = (e) => {
+          e.stopPropagation();
+          selectElement(element);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        };
+
+        // Thêm event listeners cho hover
+        label.addEventListener('mouseover', () => {
+          // Thêm class hover vào element tương ứng
+          if (element && element.classList) {
+            element.classList.add('hover');
+          }
+        });
+
+        label.addEventListener('mouseout', () => {
+          // Bỏ class hover khỏi element tương ứng
+          if (element && element.classList) {
+            element.classList.remove('hover');
+          }
+        });
+
+        node.appendChild(label);
+
+        // Nếu là layout container, thêm các node con (các column)
+        if (element.classList.contains('layout-container')) {
+          const childrenContainer = document.createElement('div');
+          childrenContainer.className = 'layer-node-children';
+
+          const children = Array.from(element.children);
+          children.forEach((child) => {
+            const childNode = createTreeNode(child, depth + 1);
+            if (childNode) {
+              // Chỉ thêm node nếu nó không bị ẩn
+              childrenContainer.appendChild(childNode);
+            }
+          });
+
+          node.appendChild(childrenContainer);
+        } else if (
+          element.classList.contains('canvas-item') &&
+          element.parentElement &&
+          element.parentElement.classList.contains('layout-container')
+        ) {
+          // Nếu là một column trong layout container, hiển thị các phần tử con (các block đã thêm)
+          const childrenContainer = document.createElement('div');
+          childrenContainer.className = 'layer-node-children';
+
+          // Duyệt qua tất cả các phần tử con trong column
+          const columnChildren = Array.from(element.children);
+          columnChildren.forEach((childElement) => {
+            // Kiểm tra nếu childElement là canvas-item (block đã thêm)
+            if (childElement.classList && childElement.classList.contains('canvas-item')) {
+              const childNode = createTreeNode(childElement, depth + 1);
+              if (childNode) {
+                // Chỉ thêm node nếu nó không bị ẩn
+                childrenContainer.appendChild(childNode);
+              }
+            }
+          });
+
+          node.appendChild(childrenContainer);
+        }
+
+        return node;
+      }
+
+      // Hàm lấy nhãn cho một phần tử
+      function getElementLabel(element) {
+        // Kiểm tra data-type trước
+        let type = element.dataset.type;
+
+        // Nếu không có data-type, kiểm tra layoutType (dành cho layout containers)
+        if (!type) {
+          type = element.dataset.layoutType;
+        }
+
+        // Nếu vẫn không có type, kiểm tra class để xác định loại layout
+        if (!type) {
+          if (element.classList.contains('layout-container')) {
+            // Xác định loại layout từ class của element
+            if (element.classList.contains('col-1-container')) {
+              type = '1col';
+            } else if (element.classList.contains('col-2-container')) {
+              type = '2col';
+            } else if (element.classList.contains('col-3-container')) {
+              type = '3col';
+            } else if (element.classList.contains('col-2-3-7-container')) {
+              type = '2col-3-7';
+            }
+          } else if (element.parentElement && element.parentElement.classList.contains('layout-container')) {
+            // Nếu là column trong layout container
+            if (element.classList.contains('col-1')) {
+              type = '1col-column';
+            } else if (element.classList.contains('col-2')) {
+              type = '2col-column';
+            } else if (element.classList.contains('col-3')) {
+              type = '3col-column';
+            } else if (element.classList.contains('col-7')) {
+              type = '2col-3-7-column';
+            } else {
+              type = 'column';
+            }
+          }
+        }
+
+        // Nếu vẫn không xác định được type, dùng "unknown"
+        if (!type) {
+          type = 'unknown';
+        }
+
+        const typeLabels = {
+          section: { label: 'Section', icon: 'fa-solid fa-section' },
+          heading: { label: 'Heading', icon: 'fa-solid fa-heading' },
+          text: { label: 'Text', icon: 'fa-solid fa-font' },
+          divider: { label: 'Divider', icon: 'fa-solid fa-slash' },
+          link: { label: 'Link', icon: 'fa-solid fa-link' },
+          linkbox: { label: 'Linkbox', icon: 'fa-solid fa-lines-leaning' },
+          image: { label: 'Image', icon: 'fa-solid fa-image' },
+          '1col': {
+            label: '1 Column Layout',
+            icon: 'fa-solid fa-table-columns',
+          },
+          '2col': {
+            label: '2 Column Layout',
+            icon: 'fa-solid fa-table-columns',
+          },
+          '3col': {
+            label: '3 Column Layout',
+            icon: 'fa-solid fa-table-columns',
+          },
+          '2col-3-7': {
+            label: '2 Column (3/7) Layout',
+            icon: 'fa-solid fa-table-columns',
+          },
+          '1col-column': { label: 'Column', icon: 'fa-solid fa-border-all' },
+          '2col-column': { label: 'Column', icon: 'fa-solid fa-border-all' },
+          '3col-column': { label: 'Column', icon: 'fa-solid fa-border-all' },
+          '2col-3-7-column': {
+            label: 'Column',
+            icon: 'fa-solid fa-border-all',
+          },
+          column: { label: 'Column', icon: 'fa-solid fa-border-all' },
+        };
+        return typeLabels[type] || { label: type, icon: '' };
+      }
+    </script>
+  </body>
+</html>
